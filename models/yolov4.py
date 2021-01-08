@@ -1,11 +1,10 @@
-# In progress
 import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from common import Conv2dBlock, CSPBlock, SPP
+from models.common import Conv2dBlock, CSPBlock, SPP
 
 
 class CSPDarknet53_SPP_PAN(nn.Module):
