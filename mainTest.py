@@ -8,7 +8,7 @@ from models.yolov4 import CSPDarknet53_SPP_PAN
 
 
 if __name__ == "__main__":
-    xTest = torch.rand((32,3,256,256))
+    xTest = torch.rand((32,3,224,224))
     
     modelTest = CSPDarknet53_SPP_PAN()
     
