@@ -79,20 +79,16 @@ class CSPBlock(nn.Module):
 
 
 class SPP(nn.Module):
-    def __init__(self, in_C, out_C, kernels=[5,9,13]):
+    def __init__(self, in_C, kernels=[5,9,13]):
         super(SPP, self).__init__()
-        
-        self.cv1 = Conv2dBlock(in_C=in_C, out_C=in_C//2, k=1, s=1, p=0)
         
         self.spatial_pyramid = nn.ModuleList(
             [nn.MaxPool2d(kernel_size=k, stride=1, padding=k//2) for k in kernels]
         )
         
-        self.cv2 = Conv2dBlock(in_C=in_C*2, out_C=out_C, k=1, s=1, p=0)
+        self.conv_layer = Conv2dBlock(in_C=in_C*4, out_C=in_C, k=1, s=1, p=0)
 
     def forward(self, x):
-        x = self.cv1(x)
-        
         spatial_pyramid_output = torch.cat([x] + [level(x) for level in self.spatial_pyramid], dim=1)
         
-        return self.cv2(spatial_pyramid_output)
+        return self.conv_layer(spatial_pyramid_output)
