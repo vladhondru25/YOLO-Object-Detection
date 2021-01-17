@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.common import Conv2dBlock, CSPBlock, SPP
+from models.common import *
 
 
 class CSPDarknet53_SPP_PAN(nn.Module):
@@ -111,6 +111,17 @@ class CSPDarknet53_SPP_PAN(nn.Module):
             Conv2dBlock(in_C=512,  out_C=1024, k=3, s=1, p=1),
             Conv2dBlock(in_C=1024, out_C=255,  k=1, s=1, p=0, activation='identity')
         )
+        
+    def _apply_activations(self, output):
+        output[:, 0:2,    :,:] = ACTIVATIONS['sigmoid'](output[:, 0:2,    :,:])
+        output[:, 85:87,  :,:] = ACTIVATIONS['sigmoid'](output[:, 85:87,  :,:])
+        output[:, 170:172,:,:] = ACTIVATIONS['sigmoid'](output[:, 170:172,:,:])
+        
+        output[:, 2:4,    :,:] = torch.exp(output[:, 2:4,    :,:])
+        output[:, 87:89,  :,:] = torch.exp(output[:, 87:89,  :,:])
+        output[:, 177:179,:,:] = torch.exp(output[:, 177:179,:,:])
+        
+        return output
 
     def forward(self, x):
         # Backbone + SPP
@@ -144,20 +155,20 @@ class CSPDarknet53_SPP_PAN(nn.Module):
         
         # Augmented bottom-up path from neck and heads
         outputs =[]
-        outputs.append(self.n2_head(p[-3]))
+        outputs.append( self._apply_activations(self.n2_head(p[-3])) )
 
         x = self.n2_3_layers(torch.cat([
             self.augmented_path[0](p[-3]),
             p[-2]
         ], dim=1))
         
-        outputs.append(self.n3_head(x))
+        outputs.append( self._apply_activations(self.n3_head(x)) )
         
         x = self.n3_4_layers(torch.cat([
             self.augmented_path[1](x),
             p[-1]
         ], dim=1))
         
-        outputs.append(self.n4_head(x))
+        outputs.append( self._apply_activations(self.n4_head(x)) )
         
         return outputs
