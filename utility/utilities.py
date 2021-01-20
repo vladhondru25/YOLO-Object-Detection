@@ -4,9 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-
-# def process_output(pred):
     
 def split_output(pred, device, no_boxes=3):
     """
@@ -34,3 +31,10 @@ def split_output(pred, device, no_boxes=3):
         classes_pred[:,box,:,:,:]      = pred[:, (box*total_box_size+5):((box+1)*total_box_size),:,:]
         
     return [boxes_offsets, objectness_scores, classes_pred]
+
+
+def process_target():
+    """
+    #TODO
+    """
+    pass

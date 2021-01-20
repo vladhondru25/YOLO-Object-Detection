@@ -113,13 +113,18 @@ class CSPDarknet53_SPP_PAN(nn.Module):
         )
         
     def _apply_activations(self, output):
+        # tx, ty
         output[:, 0:2,    :,:] = ACTIVATIONS['sigmoid'](output[:, 0:2,    :,:])
         output[:, 85:87,  :,:] = ACTIVATIONS['sigmoid'](output[:, 85:87,  :,:])
         output[:, 170:172,:,:] = ACTIVATIONS['sigmoid'](output[:, 170:172,:,:])
-        
+        # tw, th
         output[:, 2:4,    :,:] = torch.exp(output[:, 2:4,    :,:])
         output[:, 87:89,  :,:] = torch.exp(output[:, 87:89,  :,:])
-        output[:, 177:179,:,:] = torch.exp(output[:, 177:179,:,:])
+        output[:, 172:174,:,:] = torch.exp(output[:, 172:174,:,:])
+        # objectness + class predictions
+        output[:,   4:85,  :,:] = ACTIVATIONS['sigmoid'](output[:,   4:85,  :,:])
+        output[:,  89:170, :,:] = ACTIVATIONS['sigmoid'](output[:,  89:170, :,:])
+        output[:, 174:255, :,:] = ACTIVATIONS['sigmoid'](output[:, 174:255, :,:])
         
         return output
 

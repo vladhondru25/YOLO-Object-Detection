@@ -10,13 +10,22 @@ ANCHORS = {'s_scale': [(12,16),     (19,36),  (40,28) ],
            'm_scale': [(36,75),     (76,55),  (72,146)], 
            'l_scale': [(142,110), (192,243), (459,401)]
           }
-IMAGES_DIMS = {'W': 32, 'H': 32}
 
 
-def prediction_to_boxes(pred, scale):
+def prediction_to_boxes(pred, scale, input_dim):
     """
+    Transform the predictions into YOLO boxes:
+        b_x = sigmoid(t_x) + c_x
+        b_y = sigmoid(t_y) + c_y
+        b_w = p_w * e^(t_w)
+        b_h = p_h * e^(t_h)
+        
+    , and then scale each parameter (b_x, b_y by the feature map size; b_w, b_h by the input dimensions).
+    
     Input:
-    pred (batch, no_boxes, 4, feature_map_w, feature_map_h)
+    pred: (batch, no_boxes, 4, feature_map_w, feature_map_h)
+    scale: which of the three scales of yolo is used: s_scale, m_scale or l_scale
+    input_dim: (dim_w,dim_h) the dimensions of the input
     """
     output = torch.empty(pred.shape)
     
@@ -31,16 +40,52 @@ def prediction_to_boxes(pred, scale):
         # Box dimensions
         output[:,box,2:4,:,:] = pred[:,box,2:4,:,:] * torch.Tensor([[[[[ anchors[box][0] ]],[[ anchors[box][1] ]]]]])
         
+    if pred.shape[-2] == pred.shape[-1]:
+        output[:,:,0:2,:,:] = output[:,:,0:2,:,:] / pred.shape[-1]
+    else:
+        output[:,:,0,:,:] /= pred.shape[-2]
+        output[:,:,1,:,:] /= pred.shape[-1]
+        
+    if input_dim[0] == input_dim[1]:
+        output[:,:,2:4,:,:] = output[:,:,2:4,:,:] / input_dim[0]
+    else:
+        output[:,:,2,:,:] = output[:,:,2,:,:] / input_dim[0]
+        output[:,:,3,:,:] = output[:,:,3,:,:] / input_dim[1]
+        
     return output
     
     
-
-def filter_boxes(boxes_offsets, objectness_scores, classes_pred, threshold=0.6):
+def boxes_center_to_corners(boxes_offsets):
     """
+    Transform the format of the boxes' coordinates, from centre to corner.
+    
     Input:
-    boxes_offsets shape     (batch, feature map size W, feature map size H, boxes number, 4)
-    objectness_scores shape (batch, feature map size W, feature map size H, boxes number, 1)
-    classes_pred shape      (batch, feature map size W, feature map size H, boxes number, classes number)
+    boxes_offsets (batch, no_boxes, 4, feature_map_w, feature_map_h)
+    """
+    feature_map_w = boxes_offsets.shape[-2] 
+    feature_map_h = boxes_offsets.shape[-1]
+    
+    boxes_corners = torch.empty(boxes_offsets.shape)
+    
+    # Transform the coordinates
+    # x_0, y_0
+    boxes_corners[:,:,0,:,:] = boxes_offsets[:,:,0,:,:] - boxes_offsets[:,:,2,:,:] / 2.0
+    boxes_corners[:,:,1,:,:] = boxes_offsets[:,:,1,:,:] - boxes_offsets[:,:,3,:,:] / 2.0
+    # x_1, y_1
+    boxes_corners[:,:,2,:,:] = boxes_offsets[:,:,0,:,:] + boxes_offsets[:,:,2,:,:] / 2.0 
+    boxes_corners[:,:,3,:,:] = boxes_offsets[:,:,1,:,:] + boxes_offsets[:,:,3,:,:] / 2.0
+    
+    return boxes_corners
+    
+
+def filter_boxes(boxes_coords, objectness_scores, classes_pred, threshold=0.6):
+    """
+    #TODO
+    This function is not used in Yolo v4, as the outputs are not mutually exclusive.
+    Input:
+    boxes_coords shape      (batch, boxes number,              4, feature map size W, feature map size H)
+    objectness_scores shape (batch, boxes number,              1, feature map size W, feature map size H)
+    classes_pred shape      (batch, boxes number, classes number, feature map size W, feature map size H)
     
     Output:
     Remaining boxes, consisting of their offsets (None,4), scores (objectness score * class prediction) (None,) and the class predictions (None,)
@@ -48,15 +93,26 @@ def filter_boxes(boxes_offsets, objectness_scores, classes_pred, threshold=0.6):
     
     box_scores = objectness_scores * classes_pred
     
-    best_boxes, idx_best_boxes = torch.max(box_scores, dim=4)
+    best_boxes, idx_best_boxes = torch.max(box_scores, dim=2)
+    
+    print(best_boxes.shape)
     
     filter_mask = best_boxes > threshold
+    filter_mask = filter_mask.unsqueeze(2)
+
+    result = torch.masked_select(boxes_coords,filter_mask)
+    print(result.shape)
     
-    return [boxes_offsets[filter_mask], best_boxes[filter_mask], idx_best_boxes[filter_mask]]
+    # 
+    # print(filter_mask.shape)
+    
+    
+    return [boxes_coords[filter_mask], best_boxes[filter_mask], idx_best_boxes[filter_mask]]
     
 
 def non_max_suppression(boxes_offsets, scores, classes_pred, iou_threshold=0.6, max_boxes=10):
     """
+    #TODO
     boxes_offsets - tensor of shape (None,4) holding the boxes in format (x1, y1, x2, y2) i.e. two main diagonal corners
     scores        - tensor of shape (None,) holding the score of each box
     classes_pred  - tensor of shape (None,) holding the class prediction for each box
@@ -66,26 +122,15 @@ def non_max_suppression(boxes_offsets, scores, classes_pred, iou_threshold=0.6, 
     return (boxes_offsets[keep_indices[:max_boxes]], scores[keep_indices[:max_boxes]], classes_pred[keep_indices[:max_boxes]])
 
 
-def scale_boxes(boxes_offsets):
-    scaling_factor = torch.Tensor([[IMAGES_DIMS['W'], IMAGES_DIMS['H'], IMAGES_DIMS['W'], IMAGES_DIMS['H']]])
-    return boxes_offsets * scaling_factor
-
-
-"""Convert YOLO box predictions to bounding box corners"""
-def yolo_boxes_to_corners(box_xy, box_wh):
-    box_mins = box_xy - (box_wh / 2.)
-    box_maxes = box_xy + (box_wh / 2.)
-    
-    return torch.cat([
-        box_mins[..., 1:2],  # y_min
-        box_mins[..., 0:1],  # x_min
-        box_maxes[..., 1:2],  # y_max
-        box_maxes[..., 0:1]  # x_max
-    ])
+def scale_boxes(boxes_coords, input_width, input_height):
+    scaling_factor = torch.Tensor([[[[[input_width]], [[input_height]], [[input_width]], [[input_height]]]]])
+    return boxes_coords * scaling_factor
 
 
 """ Convert boxes between xywh and xyxy formats"""
 def xywh_to_xyxy(boxes_offsets):
     return box_convert(boxes_offsets, in_fmt='xywh', out_fmt='xyxy')
+def cxcywh_to_xyxy(boxes_offsets):
+    return box_convert(boxes_offsets, in_fmt='cxcywh', out_fmt='xyxy')
 def xyxy_to_xywh(boxes_offsets):
     return box_convert(boxes_offsets, in_fmt='xyxy', out_fmt='xywh')
