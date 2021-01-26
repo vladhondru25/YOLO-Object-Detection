@@ -160,20 +160,22 @@ class CSPDarknet53_SPP_PAN(nn.Module):
         
         # Augmented bottom-up path from neck and heads
         outputs =[]
-        outputs.append( self._apply_activations(self.n2_head(p[-3])) )
+        # outputs.append( self._apply_activations(self.n2_head(p[-3])) )
+        outputs.append( self.n2_head(p[-3]) )
 
         x = self.n2_3_layers(torch.cat([
             self.augmented_path[0](p[-3]),
             p[-2]
         ], dim=1))
         
-        outputs.append( self._apply_activations(self.n3_head(x)) )
+        # outputs.append( self._apply_activations(self.n3_head(x)) )
+        outputs.append( self.n3_head(x) )
         
         x = self.n3_4_layers(torch.cat([
             self.augmented_path[1](x),
             p[-1]
         ], dim=1))
         
-        outputs.append( self._apply_activations(self.n4_head(x)) )
+        outputs.append( self.n4_head(x) )
         
         return outputs

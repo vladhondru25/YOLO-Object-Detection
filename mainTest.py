@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.yolov4 import CSPDarknet53_SPP_PAN
+from models.common import *
 from utility.loss_function import *
 from utility.utilities import *
 from utility.boxes import *
@@ -32,8 +33,22 @@ if __name__ == "__main__":
     
     device = torch.device('cpu')
     
-    predTest = torch.rand(32,255,7,7)
+    predTest = torch.rand(32,255,7,7) # pred
+    yTest = torch.rand(50,6)          # y
+    
+    # 1. Retrieve the outputs as 3 tensors: boxes_offsets, objectness_scores and classes_pred
     preds = split_output(predTest, device)
+    
+    # 2. Apply Sigmoid function
+    preds[0][:,:,0:2,:,:] = ACTIVATIONS['sigmoid'](preds[0][:,:,0:2,:,:])
+    preds[1] = ACTIVATIONS['sigmoid'](preds[1])
+    preds[2] = ACTIVATIONS['sigmoid'](preds[2])
+    
+    # 3. Compute bounding boxes from the predictions
+    pred_boxes = prediction_to_boxes(preds[0], 's_scale')
+    
+    # 4. Built target
+    build_target(pred_boxes, preds[1], yTest)
     
     
     # for y in modelTest(xTest):

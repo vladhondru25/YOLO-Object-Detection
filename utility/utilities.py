@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from utility.boxes import *
+
     
 def split_output(pred, device, no_boxes=3):
     """
@@ -23,22 +25,19 @@ def split_output(pred, device, no_boxes=3):
     batch_size = pred.shape[0]
     feature_map_h = pred.shape[2]
     feature_map_w = pred.shape[3]
-      
-    # boxes_offsets     = torch.empty(batch_size, no_boxes, 4, feature_map_h, feature_map_w).to(device = device)
-    # objectness_scores = torch.empty(batch_size, no_boxes, 1, feature_map_h, feature_map_w).to(device = device)
-    # classes_pred      = torch.empty(batch_size, no_boxes, no_classes, feature_map_h, feature_map_w).to(device = device)
     
     pred = pred.view(batch_size, no_boxes, no_classes+5, feature_map_h, feature_map_w)
     
-    boxes_offsets     = pred[:,:, 0:4,:,:]
+    boxes_offsets     = pred[:,:, 0:4,:,:] #.to(device = device)
     objectness_scores = pred[:,:, 4,  :,:]
     classes_pred      = pred[:,:, 5:, :,:]
         
     return [boxes_offsets, objectness_scores, classes_pred]
 
 
-def process_target():
+def build_target(pred_boxes, pred_cls, target, ignore_thres=0.5):
     """
     #TODO
     """
     pass
+    
