@@ -10,6 +10,7 @@ ANCHORS = {'s_scale': [(12,16),     (19,36),  (40,28) ],
            'm_scale': [(36,75),     (76,55),  (72,146)], 
            'l_scale': [(142,110), (192,243), (459,401)]
           }
+SCALE_FACTOR = {'s_scale': 8, 'm_scale': 16, 'l_scale': 32}
 
 
 def prediction_to_boxes(pred, scale, input_dim):
@@ -23,29 +24,36 @@ def prediction_to_boxes(pred, scale, input_dim):
     , and then scale each parameter (b_x, b_y by the feature map size; b_w, b_h by the input dimensions).
     
     Input:
-    pred: (batch, no_boxes, 4, feature_map_w, feature_map_h)
+    pred: (batch, no_boxes, 4, feature_map_h, feature_map_w)
     scale: which of the three scales of yolo is used: s_scale, m_scale or l_scale
-    input_dim: (dim_w,dim_h) the dimensions of the input
+    input_dim: (dim_h,dim_w) the dimensions of the input
     """
+    feature_map_h = pred.shape[-2]
+    feature_map_w = pred.shape[-1]
+    
     output = torch.empty(pred.shape)
     
     anchors = ANCHORS[scale]
-    cx = torch.ones(1,1,1,pred.shape[-2],pred.shape[-1]) * torch.arange(start=0, end=pred.shape[-2]).reshape(1,1,1,1,-1)
-    cy = torch.ones(1,1,1,pred.shape[-2],pred.shape[-1]) * torch.arange(start=0, end=pred.shape[-1]).reshape(1,1,1,-1,1)
+    scale_f = SCALE_FACTOR[scale]
+    cx = torch.ones(1,1,1, feature_map_h, feature_map_w) * torch.arange(start=0, end=feature_map_h).reshape(1,1,1,1,-1)
+    cy = torch.ones(1,1,1, feature_map_h, feature_map_w) * torch.arange(start=0, end=feature_map_w).reshape(1,1,1,-1,1)
+    
     
     for box in range(output.shape[1]):
         # Box coordinates
         output[:,box,0,:,:] = pred[:,box,0,:,:] + cx
         output[:,box,1,:,:] = pred[:,box,1,:,:] + cy
         # Box dimensions
-        output[:,box,2:4,:,:] = pred[:,box,2:4,:,:] * torch.Tensor([[[[[ anchors[box][0] ]],[[ anchors[box][1] ]]]]])
+        output[:,box,2:4,:,:] = pred[:,box,2:4,:,:] * torch.Tensor([[[[[ anchors[box][0]/scale_f ]],[[ anchors[box][1]/scale_f ]]]]])
         
-    if pred.shape[-2] == pred.shape[-1]:
-        output[:,:,0:2,:,:] = output[:,:,0:2,:,:] / pred.shape[-1]
+    # Normalise b_x and b_y to be between 0 and 1
+    if feature_map_h == feature_map_w:
+        output[:,:,0:2,:,:] = output[:,:,0:2,:,:] / feature_map_h
     else:
-        output[:,:,0,:,:] /= pred.shape[-2]
-        output[:,:,1,:,:] /= pred.shape[-1]
+        output[:,:,0,:,:] /= feature_map_h
+        output[:,:,1,:,:] /= feature_map_w
         
+    # Normalise b_w and b_h to be between 0 and 1
     if input_dim[0] == input_dim[1]:
         output[:,:,2:4,:,:] = output[:,:,2:4,:,:] / input_dim[0]
     else:
@@ -58,12 +66,13 @@ def prediction_to_boxes(pred, scale, input_dim):
 def boxes_center_to_corners(boxes_offsets):
     """
     Transform the format of the boxes' coordinates, from centre to corner.
+    x, y, w, h  ->  x0, y0, x1, y1
     
     Input:
-    boxes_offsets (batch, no_boxes, 4, feature_map_w, feature_map_h)
+    boxes_offsets (batch, no_boxes, 4, feature_map_h, feature_map_w)
     """
-    feature_map_w = boxes_offsets.shape[-2] 
-    feature_map_h = boxes_offsets.shape[-1]
+    feature_map_h = boxes_offsets.shape[-2]
+    feature_map_w = boxes_offsets.shape[-1] 
     
     boxes_corners = torch.empty(boxes_offsets.shape)
     
@@ -74,6 +83,12 @@ def boxes_center_to_corners(boxes_offsets):
     # x_1, y_1
     boxes_corners[:,:,2,:,:] = boxes_offsets[:,:,0,:,:] + boxes_offsets[:,:,2,:,:] / 2.0 
     boxes_corners[:,:,3,:,:] = boxes_offsets[:,:,1,:,:] + boxes_offsets[:,:,3,:,:] / 2.0
+    
+    # Clip the bounding boxes to fit the input image size
+    boxes_corners[:,:,0,:,:].clamp_(min=0, max=1)
+    boxes_corners[:,:,1,:,:].clamp_(min=0, max=1)
+    boxes_corners[:,:,2,:,:].clamp_(min=0, max=1) 
+    boxes_corners[:,:,3,:,:].clamp_(min=0, max=1)
     
     return boxes_corners
     
@@ -95,17 +110,10 @@ def filter_boxes(boxes_coords, objectness_scores, classes_pred, threshold=0.6):
     
     best_boxes, idx_best_boxes = torch.max(box_scores, dim=2)
     
-    print(best_boxes.shape)
-    
     filter_mask = best_boxes > threshold
     filter_mask = filter_mask.unsqueeze(2)
 
     result = torch.masked_select(boxes_coords,filter_mask)
-    print(result.shape)
-    
-    # 
-    # print(filter_mask.shape)
-    
     
     return [boxes_coords[filter_mask], best_boxes[filter_mask], idx_best_boxes[filter_mask]]
     
