@@ -31,12 +31,17 @@ if __name__ == "__main__":
     # print(y_Target[0][0,0,0,3,3])
     # print(y_Target[0][0,0,2,3,3])
     
+    
+    ####################################################################
     device = torch.device('cpu')
     
     predTest = torch.rand(32,255,7,7) # pred
     yTest = torch.rand(50,6)          # y
     
-    # 1. Retrieve the outputs as 3 tensors: boxes_offsets, objectness_scores and classes_pred
+    # 1. Retrieve the outputs as 3 tensors: 
+    # boxes_offsets - torch.Size([32, 3, 4, 7, 7])
+    # objectness_scores and - torch.Size([32, 3, 7, 7])
+    # classes_pred - torch.Size([32, 3, 80, 7, 7])
     preds = split_output(predTest, device)
     
     # 2. Apply Sigmoid function
@@ -48,9 +53,10 @@ if __name__ == "__main__":
     pred_boxes = prediction_to_boxes(preds[0], 's_scale')
     
     # 4. Built target
-    build_target(pred_boxes, preds[1], yTest)
+    build_target(pred_boxes, preds[2], yTest, 's_scale')
+    ####################################################################
     
-    
+
     # for y in modelTest(xTest):
     #     print(y.shape)
     

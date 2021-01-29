@@ -36,22 +36,43 @@ def prediction_to_boxes(pred, scale):
     cx = torch.ones(1,1,1, feature_map_h, feature_map_w) * torch.arange(start=0, end=feature_map_h).reshape(1,1,1,1,-1)
     cy = torch.ones(1,1,1, feature_map_h, feature_map_w) * torch.arange(start=0, end=feature_map_w).reshape(1,1,1,-1,1)
     
-    scaled_anchor_w = torch.Tensor([[[[anchors[0][0]/scale_f]], [[anchors[1][0]/scale_f]], [[anchors[1][0]/scale_f]]]])
-    scaled_anchor_h = torch.Tensor([[[[anchors[0][1]/scale_f]], [[anchors[1][1]/scale_f]], [[anchors[1][1]/scale_f]]]])
+    scaled_anchor_w = torch.Tensor([[[[anchors[0][0]/scale_f]], [[anchors[1][0]/scale_f]], [[anchors[2][0]/scale_f]]]])
+    scaled_anchor_h = torch.Tensor([[[[anchors[0][1]/scale_f]], [[anchors[1][1]/scale_f]], [[anchors[2][1]/scale_f]]]])
     
-    output = torch.empty(pred.shape)
+    pred_boxes = torch.empty(pred.shape)
     
     # Compute box coordinates b_x and b_y
-    output[:,:,0,:,:] = pred[:,:,0,:,:] + cx
-    output[:,:,1,:,:] = pred[:,:,1,:,:] + cy
+    pred_boxes[:,:,0,:,:] = pred[:,:,0,:,:] + cx
+    pred_boxes[:,:,1,:,:] = pred[:,:,1,:,:] + cy
     # Computer box width b_w and height b_h
-    output[:,:,2,:,:] = torch.exp(pred[:,:,2,:,:]) * scaled_anchor_w
-    output[:,:,3,:,:] = torch.exp(pred[:,:,3,:,:]) * scaled_anchor_h
+    pred_boxes[:,:,2,:,:] = torch.exp(pred[:,:,2,:,:]) * scaled_anchor_w
+    pred_boxes[:,:,3,:,:] = torch.exp(pred[:,:,3,:,:]) * scaled_anchor_h
         
-    return output
+    return pred_boxes
     
     
-def boxes_center_to_corners(boxes_offsets):
+def boxes_center_to_corners(boxes):
+    """
+    Transform the format of the boxes' coordinates, from centre to corner.
+    x, y, w, h  ->  x0, y0, x1, y1
+    
+    Input:
+    boxes_center (no_boxes, 4), where the last dimension (size 4) contains x, y, w, h
+    """
+    boxes_corners = torch.empty(boxes.shape)
+    
+    # Transform the coordinates
+    # x_0, y_0
+    boxes_corners[:,0:2] = boxes[:,0:2] - boxes[:,2:4] / 2.0
+    # x_1, y_1
+    boxes_corners[:,2:4] = boxes[:,0:2] + boxes[:,2:4] / 2.0
+    
+    # Clip the bounding boxes to fit the input image size
+    boxes_corners.clamp_(min=0, max=1)
+    
+    return boxes_corners
+
+def boxes_offsets_to_corners(boxes_offsets):
     """
     Transform the format of the boxes' coordinates, from centre to corner.
     x, y, w, h  ->  x0, y0, x1, y1
