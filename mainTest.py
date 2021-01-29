@@ -53,7 +53,8 @@ if __name__ == "__main__":
     pred_boxes = prediction_to_boxes(preds[0], 's_scale')
     
     # 4. Built target
-    build_target(pred_boxes, preds[2], yTest, 's_scale')
+    object_mask, no_object_mask, class_mask, ious_pred_target, \
+        target_x, target_y, target_w, target_h, target_obj, target_class_1hot = build_target(pred_boxes, preds[2], yTest, 's_scale')
     ####################################################################
     
 

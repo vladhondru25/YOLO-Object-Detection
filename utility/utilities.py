@@ -40,8 +40,26 @@ def split_output(pred, device, no_boxes=3):
 
 def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
     """
-    #TODO
+    Compute the target, as well as the masks for the loss function
+    
+    Input:
+    pred_boxes - (batch, no_boxes, 4,  feature_map_h, feature_map_w)
+    pred_class - (batch, no_boxes, 80, feature_map_h, feature_map_w)
     target - (idx_batch, class_label, x, y, w, h)
+    scale - which of the three scales of yolo is used: s_scale, m_scale or l_scale
+    ignore_thres - the value above which IoUs are not included in the loss
+    
+    Output:
+    object_mask - (32, 3, 7, 7) - mask if object exists or not
+    no_object_mask - (32, 3, 7, 7) - mask if object does not exist or does
+    class_mask - (32, 3, 7, 7) - mask only for bboxes's classes that must be included in the loss calculation
+    ious_pred_target - (32, 3, 7, 7) - IoU between predicted bboxes and target
+    target_x - (50) - target boxes center x
+    target_y - (50) - target boxes center y
+    target_w - (50) - target boxes width
+    target_h - (50) - target boxes height
+    target_obj - (32, 3, 7, 7) - target objectness
+    target_class_1hot - (32, 3, 80, 7, 7) - target labels encoded as one-hot
     """
     nB = pred_boxes.shape[0]
     nA = pred_boxes.shape[1]
@@ -88,7 +106,7 @@ def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
     
     # Set a class mask only for bboxes's classes that must be included in the loss calculation
     class_mask = torch.zeros(size=(nB,nA,nH,nW))
-    class_mask[target_b,best_bboxes_idx,target_y_idx,target_x_idx] = pred_class[target_b,best_bboxes_idx,:,target_y_idx,target_x_idx].argmax(1) == target_c.shape
+    class_mask[target_b,best_bboxes_idx,target_y_idx,target_x_idx] = (pred_class[target_b,best_bboxes_idx,:,target_y_idx,target_x_idx].argmax(1) == target_c).float()
     
     # Compute IoU of prediction and target
     ious_pred_target = torch.zeros(size=(nB,nA,nH,nW))
