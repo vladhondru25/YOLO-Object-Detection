@@ -39,13 +39,13 @@ if __name__ == "__main__":
     yTest = torch.rand(50,6)          # y
     
     # 1. Retrieve the outputs as 3 tensors: 
-    # boxes_offsets - torch.Size([32, 3, 4, 7, 7])
-    # objectness_scores and - torch.Size([32, 3, 7, 7])
-    # classes_pred - torch.Size([32, 3, 80, 7, 7])
+    # boxes_offsets - torch.Size([32, 7, 7, 3, 4])
+    # objectness_scores and - torch.Size([32, 7, 7, 3])
+    # classes_pred - torch.Size([32, 7, 7, 3, 80])
     preds = split_output(predTest, device)
     
     # 2. Apply Sigmoid function
-    preds[0][:,:,0:2,:,:] = ACTIVATIONS['sigmoid'](preds[0][:,:,0:2,:,:])
+    preds[0][:,:,:,:,0:2] = ACTIVATIONS['sigmoid'](preds[0][:,:,:,:,0:2])
     preds[1] = ACTIVATIONS['sigmoid'](preds[1])
     preds[2] = ACTIVATIONS['sigmoid'](preds[2])
     
@@ -53,8 +53,14 @@ if __name__ == "__main__":
     pred_boxes = prediction_to_boxes(preds[0], 's_scale')
     
     # 4. Built target
-    object_mask, no_object_mask, class_mask, ious_pred_target, \
-        target_x, target_y, target_w, target_h, target_obj, target_class_1hot = build_target(pred_boxes, preds[2], yTest, 's_scale')
+    object_mask, no_object_mask, class_mask, ious_pred_target, target_boxes, target_obj, target_class_1hot = build_target(pred_boxes, preds[2], yTest, 's_scale')
+        
+    print(preds[0].shape)
+    print(object_mask.shape)
+    print(preds[0][object_mask])
+        
+    # 5. Calculate loss
+    # loss = loss_function()
     ####################################################################
     
 

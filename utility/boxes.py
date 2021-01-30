@@ -23,30 +23,33 @@ def prediction_to_boxes(pred, scale):
         
     , and then scale each parameter (b_x, b_y by the feature map size; b_w, b_h by the input dimensions).
     
-    Input:
-    pred: (batch, no_boxes, 4, feature_map_h, feature_map_w)
-    scale: which of the three scales of yolo is used: s_scale, m_scale or l_scale
+    Keyword arguments:
+    pred -- (batch, feature_map_h, feature_map_w, no_boxes, 4)
+    scale -- which of the three scales of yolo is used: s_scale, m_scale or l_scale
+    
+    Output:
+    pred_boxes: (batch, feature_map_h, feature_map_w, no_boxes, 4)
     """
-    feature_map_h = pred.shape[-2]
-    feature_map_w = pred.shape[-1]
+    feature_map_h = pred.shape[1]
+    feature_map_w = pred.shape[2]
     
     anchors = ANCHORS[scale]
     scale_f = SCALE_FACTOR[scale]
     
-    cx = torch.ones(1,1,1, feature_map_h, feature_map_w) * torch.arange(start=0, end=feature_map_h).reshape(1,1,1,1,-1)
-    cy = torch.ones(1,1,1, feature_map_h, feature_map_w) * torch.arange(start=0, end=feature_map_w).reshape(1,1,1,-1,1)
+    cx = torch.ones(1, feature_map_h, feature_map_w, 1) * torch.arange(start=0, end=feature_map_h).reshape(1,1,-1,1)
+    cy = torch.ones(1, feature_map_h, feature_map_w, 1) * torch.arange(start=0, end=feature_map_w).reshape(1,-1,1,1)
     
-    scaled_anchor_w = torch.Tensor([[[[anchors[0][0]/scale_f]], [[anchors[1][0]/scale_f]], [[anchors[2][0]/scale_f]]]])
-    scaled_anchor_h = torch.Tensor([[[[anchors[0][1]/scale_f]], [[anchors[1][1]/scale_f]], [[anchors[2][1]/scale_f]]]])
-    
+    scaled_anchor_w = torch.Tensor([[[[anchors[0][0]/scale_f, anchors[1][0]/scale_f, anchors[2][0]/scale_f]]]])
+    scaled_anchor_h = torch.Tensor([[[[anchors[0][1]/scale_f, anchors[1][1]/scale_f, anchors[2][1]/scale_f]]]])
+
     pred_boxes = torch.empty(pred.shape)
     
     # Compute box coordinates b_x and b_y
-    pred_boxes[:,:,0,:,:] = pred[:,:,0,:,:] + cx
-    pred_boxes[:,:,1,:,:] = pred[:,:,1,:,:] + cy
+    pred_boxes[:,:,:,:,0] = pred[:,:,:,:,0] + cx
+    pred_boxes[:,:,:,:,1] = pred[:,:,:,:,1] + cy
     # Computer box width b_w and height b_h
-    pred_boxes[:,:,2,:,:] = torch.exp(pred[:,:,2,:,:]) * scaled_anchor_w
-    pred_boxes[:,:,3,:,:] = torch.exp(pred[:,:,3,:,:]) * scaled_anchor_h
+    pred_boxes[:,:,:,:,2] = torch.exp(pred[:,:,:,:,2]) * scaled_anchor_w
+    pred_boxes[:,:,:,:,3] = torch.exp(pred[:,:,:,:,3]) * scaled_anchor_h
         
     return pred_boxes
     
