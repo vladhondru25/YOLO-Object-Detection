@@ -53,14 +53,10 @@ if __name__ == "__main__":
     pred_boxes = prediction_to_boxes(preds[0], 's_scale')
     
     # 4. Built target
-    object_mask, no_object_mask, class_mask, ious_pred_target, target_boxes, target_obj, target_class_1hot = build_target(pred_boxes, preds[2], yTest, 's_scale')
-        
-    print(preds[0].shape)
-    print(object_mask.shape)
-    print(preds[0][object_mask])
+    masks_and_target = build_target(pred_boxes, preds[2], yTest, 's_scale')
         
     # 5. Calculate loss
-    # loss = loss_function()
+    loss = loss_function(preds, masks_and_target)
     ####################################################################
     
 

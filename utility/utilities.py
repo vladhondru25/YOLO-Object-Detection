@@ -84,7 +84,7 @@ def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
     
     # Create masks if object is present, respetively not present in grid
     object_mask = torch.zeros(size=(nB,nH,nW,nA)).bool()
-    no_object_mask = torch.ones(size=(nB,nH,nW,nA))
+    no_object_mask = torch.ones(size=(nB,nH,nW,nA)).bool()
     
     # Set the object_mask where there is an object, respectively clear the no_object_mask 
     object_mask[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = 1
@@ -94,8 +94,16 @@ def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
         no_object_mask[target_b[i], target_y_idx[i], target_x_idx[i], t_a_ious > ignore_thres] = 0
         
     # Compute the target t_x, t_y, t_w, t_h by inverting the equations
-    target_x, target_y = target_boxes[:,:2].t() - target_boxes[:,:2].floor().t()
-    target_w, target_h = torch.log(target_boxes[:,2:] / anchors[best_bboxes_idx] + _EPS).t()
+    target_x = torch.zeros(size=(nB,nH,nW,nA))
+    target_y = torch.zeros(size=(nB,nH,nW,nA))
+    target_w = torch.zeros(size=(nB,nH,nW,nA))
+    target_h = torch.zeros(size=(nB,nH,nW,nA))
+    
+    target_x[target_b,target_y_idx,target_x_idx,best_bboxes_idx], \
+    target_y[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = target_boxes[:,:2].t() - target_boxes[:,:2].floor().t()
+    
+    target_w[target_b,target_y_idx,target_x_idx,best_bboxes_idx], \
+    target_h[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = torch.log(target_boxes[:,2:] / anchors[best_bboxes_idx] + _EPS).t()
     
     # Compute the target objectness
     target_obj = object_mask.float()
@@ -113,7 +121,7 @@ def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
     ious_pred_target[target_b, target_y_idx,target_x_idx,best_bboxes_idx] = iou_xyxy(pred_boxes[target_b,target_y_idx,target_x_idx,best_bboxes_idx,:], \
                                                                                      target_boxes, boxes_center_to_corners)
     
-    return object_mask, no_object_mask, class_mask, ious_pred_target, torch.stack([target_x, target_y, target_w, target_h], dim=1), target_obj, target_class_1hot
+    return object_mask, no_object_mask, class_mask, ious_pred_target, target_x, target_y, target_w, target_h, target_obj, target_class_1hot
 
     
 def iou_xywh(target_wh, anchors):

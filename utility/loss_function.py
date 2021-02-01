@@ -39,7 +39,7 @@ def iou_loss(pred, target):
     return 1-iou
 
 
-def loss_function(pred, target):
+def loss_function(preds, masks_and_target):
     """
     #TODO
     pred and target are arrays containing:
@@ -51,14 +51,23 @@ def loss_function(pred, target):
     """
     # xy_loss = mse_loss(pred[0][:,:,0:2,:,:], target[0][:,:,0:2,:,:])
     # wh_loss = mse_loss(pred[0][:,:,2:4,:,:], target[0][:,:,2:4,:,:])
-    
     # obj_loss = binary_cross_entropy(pred[1], target[1])
+    # iouLoss= iou_loss(pred[0], target[0]).mean()
+    object_mask, no_object_mask, class_mask, ious_pred_target, \
+        target_x, target_y, target_w, target_h, target_obj, target_class_1hot = masks_and_target
+        
+    # Bounding box prediction loss
+    loss_tx = mse_loss(preds[0][object_mask][:,0], target_x[object_mask])
+    loss_ty = mse_loss(preds[0][object_mask][:,1], target_y[object_mask])
+    loss_tw = mse_loss(preds[0][object_mask][:,2], target_w[object_mask])
+    loss_th = mse_loss(preds[0][object_mask][:,3], target_h[object_mask])
     
-    iouLoss= iou_loss(pred[0], target[0]).mean()
+    # Objectness loss
+    loss_objectness = 5.0 * binary_cross_entropy(preds[1][object_mask], target_obj[object_mask]) + \
+                      0.5 * binary_cross_entropy(preds[1][no_object_mask], target_obj[no_object_mask])
     
-    # print(xy_loss.item())
-    # print(wh_loss.item())
-    # print(obj_loss.item())
+    # Class prediction loss
+    loss_class = binary_cross_entropy(preds[2][object_mask], target_class_1hot[object_mask])
     
-    print(iouLoss.item())
+    return loss_tx + loss_ty + loss_tw + loss_th + loss_objectness + loss_class
     
