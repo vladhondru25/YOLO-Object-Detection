@@ -9,9 +9,24 @@ from models.common import *
 from utility.loss_function import *
 from utility.utilities import *
 from utility.boxes import *
+from utility.dataset import *
 
+from pyinstrument import Profiler
 
 if __name__ == "__main__":
+    ds = CocoDatasetTrain()
+    dl = load_dataloader(ds, batch_size=32)
+    
+    # profiler = Profiler()
+    # profiler.start()
+    
+    for i, batch in enumerate(dl):
+        images, targets = batch
+        
+    # profiler.stop()
+    # print(profiler.output_text(unicode=True, color=True))
+
+# if __name__ == "__main__":
     # xTest = torch.rand((32,3,224,224))
     # modelTest = CSPDarknet53_SPP_PAN()
     
