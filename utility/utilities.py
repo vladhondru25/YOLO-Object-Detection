@@ -38,7 +38,7 @@ def split_output(pred, device, no_boxes=3):
     return [boxes_offsets, objectness_scores, classes_pred]
 
 
-def build_target(pred_boxes, pred_class, target, scale, device, ignore_thres=0.5):
+def build_target(pred_boxes, pred_class, target, scale, device, ignore_thres=0.7):
     """
     Compute the target, as well as the masks for the loss function
     

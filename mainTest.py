@@ -56,30 +56,3 @@ if __name__ == "__main__":
         
         break
     
-    ####################################################################
-    # device = torch.device('cpu')
-    
-    # predTest = torch.rand(32,255,7,7) # pred
-    # yTest = torch.rand(50,6)          # y
-    
-    # # 1. Retrieve the outputs as 3 tensors: 
-    # # boxes_offsets - torch.Size([32, 7, 7, 3, 4])
-    # # objectness_scores and - torch.Size([32, 7, 7, 3])
-    # # classes_pred - torch.Size([32, 7, 7, 3, 80])
-    # preds = split_output(predTest, device)
-    
-    # # 2. Apply Sigmoid function
-    # preds[0][:,:,:,:,0:2] = ACTIVATIONS['sigmoid'](preds[0][:,:,:,:,0:2])
-    # preds[1] = ACTIVATIONS['sigmoid'](preds[1])
-    # preds[2] = ACTIVATIONS['sigmoid'](preds[2])
-    
-    # # 3. Compute bounding boxes from the predictions
-    # pred_boxes = prediction_to_boxes(preds[0], 's_scale')
-    
-    # # 4. Built target
-    # masks_and_target = build_target(pred_boxes, preds[2], yTest, 's_scale')
-        
-    # # 5. Calculate loss
-    # loss = loss_function(preds, masks_and_target)
-    ####################################################################
-    

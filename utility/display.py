@@ -18,3 +18,19 @@ def show_boxes(image, bboxes):
         ax.add_patch(rect)
 
     plt.show()
+    
+    
+def show_prediction(image, bboxes):
+    # Create figure and axes
+    fig,ax = plt.subplots(1)
+
+    # Display the image
+    ax.imshow(image.permute(1, 2, 0))
+
+    # Create a Rectangle patch
+    for bbox in bboxes:
+        rect = patches.Rectangle((bbox[0],bbox[1]),bbox[2],bbox[3],linewidth=1,edgecolor='r',facecolor='none')
+        # Add the patch to the Axes
+        ax.add_patch(rect)
+
+    plt.show()
