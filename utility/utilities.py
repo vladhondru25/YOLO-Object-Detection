@@ -31,14 +31,14 @@ def split_output(pred, device, no_boxes=3):
     
     pred = pred.view(batch_size, no_boxes, no_classes+5, feature_map_h, feature_map_w)
     
-    boxes_offsets     = pred[:,:, 0:4,:,:].permute(0,3,4,1,2) #.to(device = device)
-    objectness_scores = pred[:,:, 4,  :,:].permute(0,2,3,1)
-    classes_pred      = pred[:,:, 5:, :,:].permute(0,3,4,1,2)
+    boxes_offsets     = pred[:,:, 0:4,:,:].permute(0,3,4,1,2).to(device = device)
+    objectness_scores = pred[:,:, 4,  :,:].permute(0,2,3,1).to(device = device)
+    classes_pred      = pred[:,:, 5:, :,:].permute(0,3,4,1,2).to(device = device)
         
     return [boxes_offsets, objectness_scores, classes_pred]
 
 
-def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
+def build_target(pred_boxes, pred_class, target, scale, device, ignore_thres=0.5):
     """
     Compute the target, as well as the masks for the loss function
     
@@ -50,16 +50,16 @@ def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
     ignore_thres -- the value above which IoUs are not included in the loss
     
     Output:
-    object_mask - (32, 7, 7, 3) - mask if object exists or not
-    no_object_mask - (32, 7, 7, 3) - mask if object does not exist or does
-    class_mask - (32, 7, 7, 3) - mask only for bboxes's classes that must be included in the loss calculation
-    ious_pred_target - (32, 7, 7, 3) - IoU between predicted bboxes and target
-    target_x - (50) - target boxes center x
-    target_y - (50) - target boxes center y
-    target_w - (50) - target boxes width
-    target_h - (50) - target boxes height
-    target_obj - (32, 7, 7, 3) - target objectness
-    target_class_1hot - (32, 7, 7, 3, 80) - target labels encoded as one-hot
+    object_mask - (batch, feature_map_h, feature_map_w, no_boxes) - mask if object exists or not
+    no_object_mask - (batch, feature_map_h, feature_map_w, no_boxes) - mask if object does not exist or does
+    class_mask - (batch, feature_map_h, feature_map_w, no_boxes) - mask only for bboxes's classes that must be included in the loss calculation
+    ious_pred_target - (batch, feature_map_h, feature_map_w, no_boxes) - IoU between predicted bboxes and target
+    target_x - (Total no. of target boxes in batch) - target boxes center x
+    target_y - (Total no. of target boxes in batch) - target boxes center y
+    target_w - (Total no. of target boxes in batch) - target boxes width
+    target_h - (Total no. of target boxes in batch) - target boxes height
+    target_obj - (batch, feature_map_h, feature_map_w, no_boxes) - target objectness
+    target_class_1hot - (batch, feature_map_h, feature_map_w, no_boxes, 80) - target labels encoded as one-hot
     """
     nB = pred_boxes.shape[0]
     nH = pred_boxes.shape[1]
@@ -68,7 +68,7 @@ def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
     nC = pred_class.shape[4]
     
     scale_f = SCALE_FACTOR[scale]
-    anchors = torch.Tensor(ANCHORS[scale])
+    anchors = torch.Tensor(ANCHORS[scale]).to(device = device)
     
     # Scale target boxes to the corresponding feature map
     target_boxes = target[:,2:] / scale_f
@@ -83,8 +83,8 @@ def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
     best_bboxes, best_bboxes_idx = torch.max(ious_target_anchors, dim=0)
     
     # Create masks if object is present, respetively not present in grid
-    object_mask = torch.zeros(size=(nB,nH,nW,nA)).bool()
-    no_object_mask = torch.ones(size=(nB,nH,nW,nA)).bool()
+    object_mask = torch.zeros(size=(nB,nH,nW,nA)).bool().to(device = device)
+    no_object_mask = torch.ones(size=(nB,nH,nW,nA)).bool().to(device = device)
     
     # Set the object_mask where there is an object, respectively clear the no_object_mask 
     object_mask[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = 1
@@ -94,32 +94,32 @@ def build_target(pred_boxes, pred_class, target, scale, ignore_thres=0.5):
         no_object_mask[target_b[i], target_y_idx[i], target_x_idx[i], t_a_ious > ignore_thres] = 0
         
     # Compute the target t_x, t_y, t_w, t_h by inverting the equations
-    target_x = torch.zeros(size=(nB,nH,nW,nA))
-    target_y = torch.zeros(size=(nB,nH,nW,nA))
-    target_w = torch.zeros(size=(nB,nH,nW,nA))
-    target_h = torch.zeros(size=(nB,nH,nW,nA))
+    target_x = torch.zeros(size=(nB,nH,nW,nA)).float().to(device = device)
+    target_y = torch.zeros(size=(nB,nH,nW,nA)).float().to(device = device)
+    target_w = torch.zeros(size=(nB,nH,nW,nA)).float().to(device = device)
+    target_h = torch.zeros(size=(nB,nH,nW,nA)).float().to(device = device)
     
     target_x[target_b,target_y_idx,target_x_idx,best_bboxes_idx], \
-    target_y[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = target_boxes[:,:2].t() - target_boxes[:,:2].floor().t()
+    target_y[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = (target_boxes[:,:2].t() - target_boxes[:,:2].floor().t()).float()
     
     target_w[target_b,target_y_idx,target_x_idx,best_bboxes_idx], \
-    target_h[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = torch.log(target_boxes[:,2:] / anchors[best_bboxes_idx] + _EPS).t()
+    target_h[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = (torch.log(target_boxes[:,2:] / anchors[best_bboxes_idx] + _EPS).t()).float()
     
     # Compute the target objectness
     target_obj = object_mask.float()
     
     # One-hot encode the target labels. NOTE: Only consider the bboxes that have the highest IoU 
-    target_class_1hot = torch.zeros(size=(nB,nH,nW,nA,nC))
-    target_class_1hot[target_b,target_c,target_y_idx,target_x_idx,best_bboxes_idx] = 1
+    target_class_1hot = torch.zeros(size=(nB,nH,nW,nA,nC)).to(device = device)
+    target_class_1hot[target_b,target_y_idx,target_x_idx,best_bboxes_idx,target_c] = 1
     
     # Set a class mask only for bboxes's classes that must be included in the loss calculation
-    class_mask = torch.zeros(size=(nB,nH,nW,nA))
+    class_mask = torch.zeros(size=(nB,nH,nW,nA)).to(device = device)
     class_mask[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = (pred_class[target_b,target_y_idx,target_x_idx,best_bboxes_idx,:].argmax(1) == target_c).float()
     
     # Compute IoU of prediction and target
-    ious_pred_target = torch.zeros(size=(nB,nH,nW,nA))
+    ious_pred_target = torch.zeros(size=(nB,nH,nW,nA)).to(device = device)
     ious_pred_target[target_b, target_y_idx,target_x_idx,best_bboxes_idx] = iou_xyxy(pred_boxes[target_b,target_y_idx,target_x_idx,best_bboxes_idx,:], \
-                                                                                     target_boxes, boxes_center_to_corners)
+                                                                                     target_boxes, device, boxes_center_to_corners)
     
     return object_mask, no_object_mask, class_mask, ious_pred_target, target_x, target_y, target_w, target_h, target_obj, target_class_1hot
 
@@ -140,14 +140,14 @@ def iou_xywh(target_wh, anchors):
         
     return torch.stack(ious)
 
-def iou_xyxy(pred_boxes, target_boxes, boxes_center_to_corners=None):
+def iou_xyxy(pred_boxes, target_boxes, device, boxes_center_to_corners=None):
     """
     This function is used to calculate the IoU between the predicted boxes and the target boxes. The last paramter is a function, which is used to transform
     the boxes format (from center points to corners).
     """
     if boxes_center_to_corners != None:
-        pred_boxes = boxes_center_to_corners(pred_boxes)
-        target_boxes = boxes_center_to_corners(target_boxes)
+        pred_boxes = boxes_center_to_corners(pred_boxes, device)
+        target_boxes = boxes_center_to_corners(target_boxes, device)
     
     area_pred = (pred_boxes[:,2] - pred_boxes[:,0]) * (pred_boxes[:,3]-pred_boxes[:,1])
     area_target = (target_boxes[:,2] - target_boxes[:,0]) * (target_boxes[:,3]-target_boxes[:,1])

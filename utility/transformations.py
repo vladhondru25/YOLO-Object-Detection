@@ -10,6 +10,6 @@ class ToTensor(object):
 
     def __call__(self, image, bboxes):
         image = transforms.ToTensor()(image)
-        bb_targets = transforms.ToTensor()(bboxes)
+        bb_targets = transforms.ToTensor()(bboxes).squeeze_(0)
 
         return image, bb_targets

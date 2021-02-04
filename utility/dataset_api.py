@@ -3,54 +3,58 @@ import json
 from collections import OrderedDict
 import numpy as np
 from PIL import Image
+import skimage.io as io
+import urllib3
 import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms, utils
 
+from pycocotools.coco import COCO
+
 from utility.transformations import *
 
 
-class CocoDatasetTrain(Dataset):
+class CocoDatasetAPITrain(Dataset):
     def __init__(self):
         # self.images_train_dir = "data/images/train"
         self.images_train_dir = "data/images/val"
         self.annotation_dir = "data/annotations/train_val"
         
-        self.length = len(os.listdir(self.images_train_dir))
+        self.coco = COCO(os.path.join(self.annotation_dir, "instances_val2017.json"))
+        self.catIds = self.coco.getCatIds()
         
-        annotations_json = open(os.path.join(self.annotation_dir, "instances_val2017.json"))
-        annotations =  json.load(annotations_json)
-        
-        self.dataset = OrderedDict()
-        self.images_ids = []
-        for image in annotations['images']:
-            self.dataset[image['id']] = {'image': image['file_name'], 'boxes': []}
-            self.images_ids.append(image['id'])
-        
-        for annotation in annotations['annotations']:
-            self.dataset[annotation['image_id']]['boxes'].append( [map_category(annotation['category_id'])] + annotation['bbox'] )
+        self.imgIds = self.coco.getImgIds()
+        self.dataset_length = len(self.imgIds)
         
     def __getitem__(self, idx):
-        entry = self.dataset[self.images_ids[idx]]
+        image_data = self.coco.loadImgs(self.imgIds[idx])[0]
         
-        img_path = os.path.join(self.images_train_dir, entry['image'])
-        image = Image.open(img_path).convert('RGB') #TODO: float or uint8?
+        image = io.imread(image_data['coco_url'])
         
-        bboxes = np.zeros(shape=(len(entry['boxes']),6))
+        if image.shape[-1] != 3:
+            return None
+        
+        annIds = self.coco.getAnnIds(imgIds=image_data['id'])
+        anns = self.coco.loadAnns(annIds)
+        
+        
+        bboxes = np.zeros(shape=(len(anns),6))
         try:
-            bboxes[:,1:] = np.array(entry['boxes'])
+            for i, ann in enumerate(anns):
+                categ_id = map_category(ann['category_id'])
+                bboxes[i,1:] = np.array([categ_id] + ann['bbox'])
         
             image, bboxes = ToTensor()(image, bboxes)
             
             # Scale bounding boxes according to resize image
             image_h, image_w = image.shape[1:]
             
-            bboxes[:,:,2] = bboxes[:,:,2] * 640.0 / image_w
-            bboxes[:,:,4] = bboxes[:,:,4] * 640.0 / image_w
-            bboxes[:,:,3] = bboxes[:,:,3] * 416.0 / image_h
-            bboxes[:,:,5] = bboxes[:,:,5] * 416.0 / image_h
+            bboxes[:,2] = bboxes[:,2] * 640.0 / image_w
+            bboxes[:,4] = bboxes[:,4] * 640.0 / image_w
+            bboxes[:,3] = bboxes[:,3] * 416.0 / image_h
+            bboxes[:,5] = bboxes[:,5] * 416.0 / image_h
             
             image = transforms.Resize(size=(416,640), interpolation=Image.NEAREST)(image)
         except:
@@ -66,14 +70,17 @@ class CocoDatasetTrain(Dataset):
         
         images = torch.stack(images)
         
-        for i, boxes in enumerate(bboxes):
-            boxes[:, 0] = i
-        bboxes = torch.cat(bboxes, 1)
+        try:
+            for i, boxes in enumerate(bboxes):
+                boxes[:, 0] = i
+        except:
+            print(bboxes)
+        bboxes = torch.cat(bboxes, 0)
         
         return images, bboxes
         
     def __len__(self):
-        return self.length
+        return self.dataset_length
         
         
 def map_category(cat):
@@ -100,15 +107,3 @@ def map_category(cat):
         
 def load_dataloader(dataset, batch_size, shuffle=True):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=dataset.collate_fn)
-        
-        
-if __name__ == "__main__":
-    ds = CocoDatasetTrain()
-    print(len(ds))
-    
-    entry = ds[2]
-    
-    # print(entry[1].shape)
-    # plt.axis('off')
-    # plt.imshow(entry[0])
-    # plt.show()

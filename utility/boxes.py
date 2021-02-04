@@ -6,14 +6,14 @@ import torch.nn.functional as F
 from torchvision.ops import nms, box_convert
 
 
-ANCHORS = {'s_scale': [(12,16),     (19,36),  (40,28) ],
+ANCHORS = {'l_scale': [(12,16),     (19,36),  (40,28) ],
            'm_scale': [(36,75),     (76,55),  (72,146)], 
-           'l_scale': [(142,110), (192,243), (459,401)]
+           's_scale': [(142,110), (192,243), (459,401)]
           }
-SCALE_FACTOR = {'s_scale': 8, 'm_scale': 16, 'l_scale': 32}
+SCALE_FACTOR = {'l_scale': 8, 'm_scale': 16, 's_scale': 32}
 
 
-def prediction_to_boxes(pred, scale):
+def prediction_to_boxes(pred, scale, device):
     """
     Transform the predictions into YOLO boxes:
         b_x = sigmoid(t_x) + c_x
@@ -36,17 +36,17 @@ def prediction_to_boxes(pred, scale):
     anchors = ANCHORS[scale]
     scale_f = SCALE_FACTOR[scale]
     
-    cx = torch.ones(1, feature_map_h, feature_map_w, 1) * torch.arange(start=0, end=feature_map_h).reshape(1,1,-1,1)
-    cy = torch.ones(1, feature_map_h, feature_map_w, 1) * torch.arange(start=0, end=feature_map_w).reshape(1,-1,1,1)
+    cx = torch.ones(1, feature_map_h, feature_map_w, 1) * torch.arange(start=0, end=feature_map_w).reshape(1,1,-1,1)
+    cy = torch.ones(1, feature_map_h, feature_map_w, 1) * torch.arange(start=0, end=feature_map_h).reshape(1,-1,1,1)
     
-    scaled_anchor_w = torch.Tensor([[[[anchors[0][0]/scale_f, anchors[1][0]/scale_f, anchors[2][0]/scale_f]]]])
-    scaled_anchor_h = torch.Tensor([[[[anchors[0][1]/scale_f, anchors[1][1]/scale_f, anchors[2][1]/scale_f]]]])
+    scaled_anchor_w = torch.Tensor([[[[anchors[0][0]/scale_f, anchors[1][0]/scale_f, anchors[2][0]/scale_f]]]]).to(device = device)
+    scaled_anchor_h = torch.Tensor([[[[anchors[0][1]/scale_f, anchors[1][1]/scale_f, anchors[2][1]/scale_f]]]]).to(device = device)
 
     pred_boxes = torch.empty(pred.shape)
     
     # Compute box coordinates b_x and b_y
-    pred_boxes[:,:,:,:,0] = pred[:,:,:,:,0] + cx
-    pred_boxes[:,:,:,:,1] = pred[:,:,:,:,1] + cy
+    pred_boxes[:,:,:,:,0] = pred[:,:,:,:,0] + cx.to(device = device)
+    pred_boxes[:,:,:,:,1] = pred[:,:,:,:,1] + cy.to(device = device)
     # Computer box width b_w and height b_h
     pred_boxes[:,:,:,:,2] = torch.exp(pred[:,:,:,:,2]) * scaled_anchor_w
     pred_boxes[:,:,:,:,3] = torch.exp(pred[:,:,:,:,3]) * scaled_anchor_h
@@ -54,7 +54,7 @@ def prediction_to_boxes(pred, scale):
     return pred_boxes
     
     
-def boxes_center_to_corners(boxes):
+def boxes_center_to_corners(boxes, device):
     """
     Transform the format of the boxes' coordinates, from centre to corner.
     x, y, w, h  ->  x0, y0, x1, y1
@@ -62,7 +62,7 @@ def boxes_center_to_corners(boxes):
     Input:
     boxes_center (no_boxes, 4), where the last dimension (size 4) contains x, y, w, h
     """
-    boxes_corners = torch.empty(boxes.shape)
+    boxes_corners = torch.empty(boxes.shape).to(device = device)
     
     # Transform the coordinates
     # x_0, y_0
@@ -75,7 +75,7 @@ def boxes_center_to_corners(boxes):
     
     return boxes_corners
 
-def boxes_offsets_to_corners(boxes_offsets):
+def boxes_offsets_to_corners(boxes_offsets, device):
     """
     Transform the format of the boxes' coordinates, from centre to corner.
     x, y, w, h  ->  x0, y0, x1, y1
@@ -86,7 +86,7 @@ def boxes_offsets_to_corners(boxes_offsets):
     feature_map_h = boxes_offsets.shape[-2]
     feature_map_w = boxes_offsets.shape[-1] 
     
-    boxes_corners = torch.empty(boxes_offsets.shape)
+    boxes_corners = torch.empty(boxes_offsets.shape).to(device = device)
     
     # Transform the coordinates
     # x_0, y_0

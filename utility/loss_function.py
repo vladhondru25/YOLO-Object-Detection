@@ -16,6 +16,7 @@ def binary_cross_entropy(pred, target, weight=None):
 
 def iou_loss(pred, target):
     """
+    #TODO
     Each tensor is (batch, no_boxes,  4, feature_map_h, feature_map_w), where the coordinates are x1,y1,x2,y2
     """
     # Area of prediction
@@ -39,9 +40,8 @@ def iou_loss(pred, target):
     return 1-iou
 
 
-def loss_function(preds, masks_and_target):
+def loss_function(preds, masks_and_target, device):
     """
-    #TODO
     pred and target are arrays containing:
         (batch, no_boxes,  4, feature_map_w, feature_map_h) 
         (batch, no_boxes,  1, feature_map_w, feature_map_h)  
@@ -49,9 +49,6 @@ def loss_function(preds, masks_and_target):
         
     NOTE: Boxes do not neet to be scaled, as IOU will be approximately the same.
     """
-    # xy_loss = mse_loss(pred[0][:,:,0:2,:,:], target[0][:,:,0:2,:,:])
-    # wh_loss = mse_loss(pred[0][:,:,2:4,:,:], target[0][:,:,2:4,:,:])
-    # obj_loss = binary_cross_entropy(pred[1], target[1])
     # iouLoss= iou_loss(pred[0], target[0]).mean()
     object_mask, no_object_mask, class_mask, ious_pred_target, \
         target_x, target_y, target_w, target_h, target_obj, target_class_1hot = masks_and_target
