@@ -53,57 +53,6 @@ def prediction_to_boxes(pred, scale, device):
         
     return pred_boxes
     
-    
-def boxes_center_to_corners(boxes, device):
-    """
-    Transform the format of the boxes' coordinates, from centre to corner.
-    x, y, w, h  ->  x0, y0, x1, y1
-    
-    Input:
-    boxes_center (no_boxes, 4), where the last dimension (size 4) contains x, y, w, h
-    """
-    boxes_corners = torch.empty(boxes.shape).to(device = device)
-    
-    # Transform the coordinates
-    # x_0, y_0
-    boxes_corners[:,0:2] = boxes[:,0:2] - boxes[:,2:4] / 2.0
-    # x_1, y_1
-    boxes_corners[:,2:4] = boxes[:,0:2] + boxes[:,2:4] / 2.0
-    
-    # Clip the bounding boxes to fit the input image size
-    boxes_corners.clamp_(min=0, max=1)
-    
-    return boxes_corners
-
-# def boxes_offsets_to_corners(boxes_offsets, device):
-#     """
-#     Transform the format of the boxes' coordinates, from centre to corner.
-#     x, y, w, h  ->  x0, y0, x1, y1
-    
-#     Input:
-#     boxes_offsets (batch, no_boxes, 4, feature_map_h, feature_map_w)
-#     """
-#     feature_map_h = boxes_offsets.shape[-2]
-#     feature_map_w = boxes_offsets.shape[-1] 
-    
-#     boxes_corners = torch.empty(boxes_offsets.shape).to(device = device)
-    
-#     # Transform the coordinates
-#     # x_0, y_0
-#     boxes_corners[:,:,0,:,:] = boxes_offsets[:,:,0,:,:] - boxes_offsets[:,:,2,:,:] / 2.0
-#     boxes_corners[:,:,1,:,:] = boxes_offsets[:,:,1,:,:] - boxes_offsets[:,:,3,:,:] / 2.0
-#     # x_1, y_1
-#     boxes_corners[:,:,2,:,:] = boxes_offsets[:,:,0,:,:] + boxes_offsets[:,:,2,:,:] / 2.0 
-#     boxes_corners[:,:,3,:,:] = boxes_offsets[:,:,1,:,:] + boxes_offsets[:,:,3,:,:] / 2.0
-    
-#     # Clip the bounding boxes to fit the input image size
-#     boxes_corners[:,:,0,:,:].clamp_(min=0, max=1)
-#     boxes_corners[:,:,1,:,:].clamp_(min=0, max=1)
-#     boxes_corners[:,:,2,:,:].clamp_(min=0, max=1) 
-#     boxes_corners[:,:,3,:,:].clamp_(min=0, max=1)
-    
-#     return boxes_corners
-    
 
 def filter_boxes(boxes_coords, objectness_scores, classes_pred, threshold=0.6):
     """
@@ -125,13 +74,13 @@ def filter_boxes(boxes_coords, objectness_scores, classes_pred, threshold=0.6):
     return [boxes_coords[filter_mask], best_boxes[filter_mask], idx_best_boxes[filter_mask]]
     
 
-def non_max_suppression(boxes_offsets, scores, classes_pred, iou_threshold=0.6, max_boxes=10):
+def non_max_suppression(boxes_offsets, scores, classes_pred, fm_size, iou_threshold=0.6, max_boxes=5):
     """
     boxes_offsets - tensor of shape (None,4) holding the boxes in format (x1, y1, x2, y2) i.e. two main diagonal corners
     scores        - tensor of shape (None,) holding the score of each box
     classes_pred  - tensor of shape (None,) holding the class prediction for each box
     """
-    boxes_offsets = xywh_to_xyxy(boxes_offsets)
+    boxes_offsets = cxcywh_to_xyxy(boxes_offsets, *fm_size)
     
     keep_indices = nms(boxes_offsets, scores, iou_threshold)
     
@@ -144,9 +93,21 @@ def non_max_suppression(boxes_offsets, scores, classes_pred, iou_threshold=0.6, 
 
 
 """ Convert boxes between xywh and xyxy formats"""
-def xywh_to_xyxy(boxes_offsets):
-    return box_convert(boxes_offsets, in_fmt='xywh', out_fmt='xyxy')
-def cxcywh_to_xyxy(boxes_offsets):
-    return box_convert(boxes_offsets, in_fmt='cxcywh', out_fmt='xyxy')
+def xywh_to_xyxy(boxes_offsets, fm_h, fm_w):
+    new_boxes = box_convert(boxes_offsets, in_fmt='xywh', out_fmt='xyxy')
+    
+    new_boxes[:,0:2].clamp_(min=0)
+    new_boxes[:,2].clamp_(max=fm_w)
+    new_boxes[:,3].clamp_(max=fm_h)
+    
+    return new_boxes
+def cxcywh_to_xyxy(boxes_offsets, fm_h, fm_w):
+    new_boxes = box_convert(boxes_offsets, in_fmt='cxcywh', out_fmt='xyxy')
+    
+    new_boxes[:,0:2].clamp_(min=0)
+    new_boxes[:,2].clamp_(max=fm_w)
+    new_boxes[:,3].clamp_(max=fm_h)
+    
+    return new_boxes
 def xyxy_to_xywh(boxes_offsets):
     return box_convert(boxes_offsets, in_fmt='xyxy', out_fmt='xywh')

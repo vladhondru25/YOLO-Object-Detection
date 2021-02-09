@@ -47,10 +47,10 @@ class CocoDatasetTrain(Dataset):
             # Scale bounding boxes according to resize image
             image_h, image_w = image.shape[1:]
             
-            bboxes[:,:,2] = bboxes[:,:,2] * 640.0 / image_w
-            bboxes[:,:,4] = bboxes[:,:,4] * 640.0 / image_w
-            bboxes[:,:,3] = bboxes[:,:,3] * 416.0 / image_h
-            bboxes[:,:,5] = bboxes[:,:,5] * 416.0 / image_h
+            bboxes[:,2] = bboxes[:,2] * 640.0 / image_w
+            bboxes[:,4] = bboxes[:,4] * 640.0 / image_w
+            bboxes[:,3] = bboxes[:,3] * 416.0 / image_h
+            bboxes[:,5] = bboxes[:,5] * 416.0 / image_h
             
             image = transforms.Resize(size=(416,640), interpolation=Image.NEAREST)(image)
         except:

@@ -50,16 +50,16 @@ def build_target(pred_boxes, pred_class, target, scale, device, ignore_thres=0.7
     ignore_thres -- the value above which IoUs are not included in the loss
     
     Output:
-    object_mask - (batch, feature_map_h, feature_map_w, no_boxes) - mask if object exists or not
-    no_object_mask - (batch, feature_map_h, feature_map_w, no_boxes) - mask if object does not exist or does
-    class_mask - (batch, feature_map_h, feature_map_w, no_boxes) - mask only for bboxes's classes that must be included in the loss calculation
-    ious_pred_target - (batch, feature_map_h, feature_map_w, no_boxes) - IoU between predicted bboxes and target
-    target_x - (Total no. of target boxes in batch) - target boxes center x
-    target_y - (Total no. of target boxes in batch) - target boxes center y
-    target_w - (Total no. of target boxes in batch) - target boxes width
-    target_h - (Total no. of target boxes in batch) - target boxes height
-    target_obj - (batch, feature_map_h, feature_map_w, no_boxes) - target objectness
-    target_class_1hot - (batch, feature_map_h, feature_map_w, no_boxes, 80) - target labels encoded as one-hot
+    object_mask -- (batch, feature_map_h, feature_map_w, no_boxes) - mask if object exists or not
+    no_object_mask -- (batch, feature_map_h, feature_map_w, no_boxes) - mask if object does not exist or does
+    class_mask -- (batch, feature_map_h, feature_map_w, no_boxes) - mask only for bboxes's classes that must be included in the loss calculation
+    ious_pred_target -- (batch, feature_map_h, feature_map_w, no_boxes) - IoU between predicted bboxes and target
+    target_x -- (Total no. of target boxes in batch) - target boxes center x
+    target_y -- (Total no. of target boxes in batch) - target boxes center y
+    target_w -- (Total no. of target boxes in batch) - target boxes width
+    target_h -- (Total no. of target boxes in batch) - target boxes height
+    target_obj -- (batch, feature_map_h, feature_map_w, no_boxes) - target objectness
+    target_class_1hot -- (batch, feature_map_h, feature_map_w, no_boxes, 80) - target labels encoded as one-hot
     """
     nB = pred_boxes.shape[0]
     nH = pred_boxes.shape[1]
@@ -99,6 +99,7 @@ def build_target(pred_boxes, pred_class, target, scale, device, ignore_thres=0.7
     target_w = torch.zeros(size=(nB,nH,nW,nA)).float().to(device = device)
     target_h = torch.zeros(size=(nB,nH,nW,nA)).float().to(device = device)
     
+    # Target boxes coordinates, in format x, y(of corners), w, h
     target_x[target_b,target_y_idx,target_x_idx,best_bboxes_idx], \
     target_y[target_b,target_y_idx,target_x_idx,best_bboxes_idx] = (target_boxes[:,:2].t() - target_boxes[:,:2].floor().t()).float()
     
@@ -118,8 +119,8 @@ def build_target(pred_boxes, pred_class, target, scale, device, ignore_thres=0.7
     
     # Compute IoU of prediction and target
     ious_pred_target = torch.zeros(size=(nB,nH,nW,nA)).to(device = device)
-    ious_pred_target[target_b, target_y_idx,target_x_idx,best_bboxes_idx] = iou_xyxy(pred_boxes[target_b,target_y_idx,target_x_idx,best_bboxes_idx,:], \
-                                                                                     target_boxes, device, boxes_center_to_corners)
+    ious_pred_target[target_b, target_y_idx, target_x_idx, best_bboxes_idx] = iou_xyxy(pred_boxes[target_b,target_y_idx,target_x_idx,best_bboxes_idx,:], \
+                                                                                     target_boxes, (nH, nW), device).float()
     
     return object_mask, no_object_mask, class_mask, ious_pred_target, target_x, target_y, target_w, target_h, target_obj, target_class_1hot
 
@@ -140,20 +141,24 @@ def iou_xywh(target_wh, anchors):
         
     return torch.stack(ious)
 
-def iou_xyxy(pred_boxes, target_boxes, device, boxes_center_to_corners=None):
+def iou_xyxy(pred_boxes, target_boxes, fm_sizes, device):
     """
     This function is used to calculate the IoU between the predicted boxes and the target boxes. The last paramter is a function, which is used to transform
     the boxes format (from center points to corners).
+    
+    Keyword arguments:
+    pred_boxes -- (bx, bw, bw, bh), transform them to common ground (x0, y0, x1, y1)
+    target_boxes -- (x0, x1, w, h), transform them to common ground (x0, y0, x1, y1)
     """
-    if boxes_center_to_corners != None:
-        pred_boxes = boxes_center_to_corners(pred_boxes, device)
-        target_boxes = boxes_center_to_corners(target_boxes, device)
+    pred_boxes_xyxy = cxcywh_to_xyxy(pred_boxes, *fm_sizes).to(device=device)
+    target_boxes_xyxy = xywh_to_xyxy(target_boxes, *fm_sizes).to(device=device)
     
-    area_pred = (pred_boxes[:,2] - pred_boxes[:,0]) * (pred_boxes[:,3]-pred_boxes[:,1])
-    area_target = (target_boxes[:,2] - target_boxes[:,0]) * (target_boxes[:,3]-target_boxes[:,1])
+    area_pred = (pred_boxes_xyxy[:,2] - pred_boxes_xyxy[:,0]) * (pred_boxes_xyxy[:,3]-pred_boxes_xyxy[:,1])
+    area_target = (target_boxes_xyxy[:,2] - target_boxes_xyxy[:,0]) * (target_boxes_xyxy[:,3]-target_boxes_xyxy[:,1])
     
-    inter_x = ( torch.minimum(pred_boxes[:,2], target_boxes[:,2]) - torch.maximum(pred_boxes[:,0], target_boxes[:,0]) ).clamp(min=0)
-    inter_y = ( torch.minimum(pred_boxes[:,3], target_boxes[:,3]) - torch.maximum(pred_boxes[:,1], target_boxes[:,1]) ).clamp(min=0)
+    
+    inter_x = ( torch.minimum(pred_boxes_xyxy[:,2], target_boxes_xyxy[:,2]) - torch.maximum(pred_boxes_xyxy[:,0], target_boxes_xyxy[:,0]) ).clamp(min=0)
+    inter_y = ( torch.minimum(pred_boxes_xyxy[:,3], target_boxes_xyxy[:,3]) - torch.maximum(pred_boxes_xyxy[:,1], target_boxes_xyxy[:,1]) ).clamp(min=0)
     inter_area = inter_x * inter_y
     
     return inter_area / (area_pred + area_target - inter_area + _EPS)

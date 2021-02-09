@@ -24,9 +24,9 @@ if __name__ == "__main__":
     # print(profiler.output_text(unicode=True, color=True))
     device = torch.device('cpu')
     
-    # ds = CocoDatasetTrain()
-    ds = CocoDatasetAPITrain()
-    dl = load_dataloader(ds, batch_size=32)
+    ds = CocoDatasetTrain()
+    # ds = CocoDatasetAPITrain()
+    dl = load_dataloader(ds, batch_size=4)
     
     modelTest = CSPDarknet53_SPP_PAN()
     modelTest = modelTest.to(device=device)
@@ -44,11 +44,11 @@ if __name__ == "__main__":
         preds[1] = ACTIVATIONS['sigmoid'](preds[1])
         preds[2] = ACTIVATIONS['sigmoid'](preds[2])
         
-        pred_boxes = prediction_to_boxes(preds[0], 's_scale')
+        pred_boxes = prediction_to_boxes(preds[0], 's_scale', device)
         
-        masks_and_target = build_target(pred_boxes, preds[2], targets, 's_scale')
+        masks_and_target = build_target(pred_boxes, preds[2], targets, 's_scale', device)
         
-        loss = loss_function(preds, masks_and_target)
+        loss = loss_function(preds, masks_and_target, device)
         
         optimiser.zero_grad()
         loss.backward()
