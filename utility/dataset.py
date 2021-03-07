@@ -61,14 +61,14 @@ class CocoDatasetTrain(Dataset):
     
     def collate_fn(self, batch):
         batch = [data for data in batch if data is not None]
-        
+    
         images, bboxes = list(zip(*batch))
         
         images = torch.stack(images)
         
         for i, boxes in enumerate(bboxes):
             boxes[:, 0] = i
-        bboxes = torch.cat(bboxes, 1)
+        bboxes = torch.cat(bboxes, 0)
         
         return images, bboxes
         
@@ -101,14 +101,3 @@ def map_category(cat):
 def load_dataloader(dataset, batch_size, shuffle=True):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=dataset.collate_fn)
         
-        
-if __name__ == "__main__":
-    ds = CocoDatasetTrain()
-    print(len(ds))
-    
-    entry = ds[2]
-    
-    # print(entry[1].shape)
-    # plt.axis('off')
-    # plt.imshow(entry[0])
-    # plt.show()

@@ -2,3 +2,4 @@ models/__pycache__/
 data/images/
 data/annotations/
 model.pt
+model2.pt

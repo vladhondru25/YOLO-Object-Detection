@@ -39,6 +39,8 @@ def prediction_to_boxes(pred, scale, device):
     cx = torch.ones(1, feature_map_h, feature_map_w, 1) * torch.arange(start=0, end=feature_map_w).reshape(1,1,-1,1)
     cy = torch.ones(1, feature_map_h, feature_map_w, 1) * torch.arange(start=0, end=feature_map_h).reshape(1,-1,1,1)
     
+    # print(cx.squeeze(0).squeeze(-1))
+    
     scaled_anchor_w = torch.Tensor([[[[anchors[0][0]/scale_f, anchors[1][0]/scale_f, anchors[2][0]/scale_f]]]]).to(device = device)
     scaled_anchor_h = torch.Tensor([[[[anchors[0][1]/scale_f, anchors[1][1]/scale_f, anchors[2][1]/scale_f]]]]).to(device = device)
 
@@ -69,12 +71,17 @@ def filter_boxes(boxes_coords, objectness_scores, classes_pred, threshold=0.6):
     
     best_boxes, idx_best_boxes = torch.max(box_scores, dim=4)
 
+    # Box score low because objcteness score is low    
+    # ind = idx_best_boxes[0,0,0,0]
+    # print("Obj: ", objectness_scores[0,0,0,0])
+    # print("Class pred: ", classes_pred[0,0,0,0,ind])
+
     filter_mask = (best_boxes >= threshold)
     
     return [boxes_coords[filter_mask], best_boxes[filter_mask], idx_best_boxes[filter_mask]]
     
 
-def non_max_suppression(boxes_offsets, scores, classes_pred, fm_size, iou_threshold=0.6, max_boxes=5):
+def non_max_suppression(boxes_offsets, scores, classes_pred, fm_size, iou_threshold=0.6, max_boxes=10):
     """
     boxes_offsets - tensor of shape (None,4) holding the boxes in format (x1, y1, x2, y2) i.e. two main diagonal corners
     scores        - tensor of shape (None,) holding the score of each box
@@ -107,6 +114,12 @@ def cxcywh_to_xyxy(boxes_offsets, fm_h, fm_w):
     new_boxes[:,0:2].clamp_(min=0)
     new_boxes[:,2].clamp_(max=fm_w)
     new_boxes[:,3].clamp_(max=fm_h)
+    
+    return new_boxes
+def xywh_to_cxcywh(boxes_offsets, fm_h, fm_w):
+    new_boxes = box_convert(boxes_offsets, in_fmt='xywh', out_fmt='cxcywh')
+
+    new_boxes[:,0:2].clamp_(min=0)
     
     return new_boxes
 def xyxy_to_xywh(boxes_offsets):

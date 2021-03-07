@@ -44,19 +44,19 @@ def iou_loss(pred, target):
 
 def loss_function2(preds, masks_and_target, device):
     """
-    pred and target are arrays containing:
-        (batch, no_boxes,  4, feature_map_w, feature_map_h) 
-        (batch, no_boxes,  1, feature_map_w, feature_map_h)  
-        (batch, no_boxes, 80, feature_map_w, feature_map_h)
+    preds is an array containing:
+        (batch, no_boxes, feature_map_w, feature_map_h,  4) 
+        (batch, no_boxes, feature_map_w, feature_map_h)  
+        (batch, no_boxes, feature_map_w, feature_map_h, 80)
         
     NOTE: Boxes do not neet to be scaled, as IOU will be approximately the same.
     """
     # iouLoss= iou_loss(pred[0], target[0]).mean()
     object_mask, no_object_mask, class_mask, ious_pred_target, \
-        target_x, target_y, target_w, target_h, target_obj, target_class_1hot = masks_and_target
+        target_x, target_y, target_w, target_h, target_obj, target_class_1hot = masks_and_target    
         
     # Bounding box prediction loss
-    loss_bbox = iou_loss(preds[0][object_mask], torch.stack([target_x[object_mask],target_y[object_mask],target_w[object_mask],target_h[object_mask]], dim=1))
+    loss_bbox = (1 - ious_pred_target).mean()
     
     # Objectness loss
     loss_objectness = 5.0 * binary_cross_entropy(preds[1][object_mask], target_obj[object_mask]) + \
@@ -71,10 +71,10 @@ def loss_function2(preds, masks_and_target, device):
 
 def loss_function(preds, masks_and_target, device):
     """
-    pred and target are arrays containing:
-        (batch, no_boxes,  4, feature_map_w, feature_map_h) 
-        (batch, no_boxes,  1, feature_map_w, feature_map_h)  
-        (batch, no_boxes, 80, feature_map_w, feature_map_h)
+    preds is an array containing:
+        (batch, no_boxes, feature_map_w, feature_map_h,  4) 
+        (batch, no_boxes, feature_map_w, feature_map_h)  
+        (batch, no_boxes, feature_map_w, feature_map_h, 80)
         
     NOTE: Boxes do not neet to be scaled, as IOU will be approximately the same.
     """
@@ -82,18 +82,39 @@ def loss_function(preds, masks_and_target, device):
     object_mask, no_object_mask, class_mask, ious_pred_target, \
         target_x, target_y, target_w, target_h, target_obj, target_class_1hot = masks_and_target
         
+    # print(preds[0][object_mask][:,0])
+    # print(target_x[object_mask])
+    # print(preds[1][object_mask])
+        
     # Bounding box prediction loss
+    # print(preds[0][object_mask][:,2])
+    # print(target_w[object_mask])
     loss_tx = mse_loss(preds[0][object_mask][:,0], target_x[object_mask])
     loss_ty = mse_loss(preds[0][object_mask][:,1], target_y[object_mask])
     loss_tw = mse_loss(preds[0][object_mask][:,2], target_w[object_mask])
     loss_th = mse_loss(preds[0][object_mask][:,3], target_h[object_mask])
     
+    # print(preds[1][object_mask])
+    # print(target_obj[object_mask])
+    
     # Objectness loss
-    loss_objectness = 5.0 * binary_cross_entropy(preds[1][object_mask], target_obj[object_mask]) + \
-                      0.5 * binary_cross_entropy(preds[1][no_object_mask], target_obj[no_object_mask])
+    loss_objectness = 1.0 * binary_cross_entropy(preds[1][object_mask], target_obj[object_mask]) + \
+                      100 * binary_cross_entropy(preds[1][no_object_mask], target_obj[no_object_mask])
+                      
+    print("OBJ:", binary_cross_entropy(preds[1][object_mask], target_obj[object_mask]).item())
+    print("NO_OBJ: ", binary_cross_entropy(preds[1][no_object_mask], target_obj[no_object_mask]).item())
     
     # Class prediction loss
+    # print("target_class_1hot[object_mask]: ", target_class_1hot[object_mask])
     loss_class = binary_cross_entropy(preds[2][object_mask], target_class_1hot[object_mask])
+    
+    # print("IOU loss: {}".format( (1 - ious_pred_target).mean().item() ))
+    print("Loss tx: {}".format(loss_tx.item()))
+    print("Loss ty: {}".format(loss_ty.item()))
+    print("Loss tw: {}".format(loss_tw.item()))
+    print("Loss th: {}".format(loss_th.item()))
+    print("Loss obj: {}".format(loss_objectness.item()))
+    print("Loss class: {}".format(loss_class.item()))
     
     return loss_tx + loss_ty + loss_tw + loss_th + loss_objectness + loss_class
     

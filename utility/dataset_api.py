@@ -70,11 +70,8 @@ class CocoDatasetAPITrain(Dataset):
         
         images = torch.stack(images)
         
-        try:
-            for i, boxes in enumerate(bboxes):
-                boxes[:, 0] = i
-        except:
-            print(bboxes)
+        for i, boxes in enumerate(bboxes):
+            boxes[:, 0] = i
         bboxes = torch.cat(bboxes, 0)
         
         return images, bboxes
